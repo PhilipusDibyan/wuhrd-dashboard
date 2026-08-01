@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="id" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Dashboard rekrutmen HRD berbasis Google Apps Script API." />
+  <title>ByanTech — Dashboard HRD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar" aria-label="Navigasi utama">
+      <a class="brand" href="#overview" aria-label="ByanTech dashboard">
+        <span class="brand-mark"><i class="fa-solid fa-layer-group"></i></span>
+        <span>Byan<span>Tech</span></span>
+      </a>
+
+      <nav class="side-nav">
+        <p class="nav-label">MENU UTAMA</p>
+        <a class="nav-link active" href="#overview"><i class="fa-solid fa-grid-2"></i><span>Dashboard</span></a>
+        <a class="nav-link" href="#applicants"><i class="fa-solid fa-users"></i><span>Pelamar</span><span class="nav-count" id="sidebarCount">0</span></a>
+        <a class="nav-link" href="#statistics"><i class="fa-solid fa-chart-pie"></i><span>Statistik</span></a>
+        <p class="nav-label nav-label-spaced">PENGATURAN</p>
+        <button class="nav-link nav-button" id="themeToggleSide" type="button"><i class="fa-regular fa-moon"></i><span>Tema gelap</span></button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="sync-status" id="syncStatus"><span class="status-dot"></span><span>Siap disinkronkan</span></div>
+        <small>ByanTech HRD v1.0</small>
+      </div>
+    </aside>
+
+    <div class="mobile-backdrop" id="mobileBackdrop"></div>
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="icon-button mobile-menu" id="mobileMenu" type="button" aria-label="Buka menu"><i class="fa-solid fa-bars"></i></button>
+          <div>
+            <p class="eyebrow">REKRUTMEN</p>
+            <h1>Dashboard Pelamar</h1>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <span class="last-updated" id="lastUpdated">Belum diperbarui</span>
+          <button class="icon-button" id="refreshButton" type="button" aria-label="Muat ulang data" title="Muat ulang data"><i class="fa-solid fa-rotate-right"></i></button>
+          <button class="theme-button" id="themeToggle" type="button" aria-label="Ubah tema"><i class="fa-regular fa-moon"></i><span>Tema</span></button>
+        </div>
+      </header>
+
+      <section class="api-notice hidden" id="apiNotice" aria-live="polite">
+        <i class="fa-solid fa-circle-info"></i>
+        <p><strong>Mode demo aktif.</strong> Atur <code>API_URL</code> di <code>api.js</code> untuk menampilkan data Google Apps Script Anda.</p>
+        <button class="notice-close" type="button" id="closeNotice" aria-label="Tutup pemberitahuan"><i class="fa-solid fa-xmark"></i></button>
+      </section>
+
+      <section class="overview" id="overview" aria-labelledby="overviewHeading">
+        <div class="section-heading">
+          <div>
+            <h2 id="overviewHeading">Ringkasan rekrutmen</h2>
+            <p>Ikhtisar data berdasarkan pencarian dan filter aktif.</p>
+          </div>
+          <button class="outline-button" id="clearFiltersTop" type="button"><i class="fa-solid fa-filter-circle-xmark"></i> Bersihkan filter</button>
+        </div>
+        <div class="metric-grid">
+          <article class="metric-card metric-primary">
+            <div class="metric-icon"><i class="fa-solid fa-users"></i></div>
+            <div><p>Total pelamar</p><strong id="metricTotal">0</strong><small id="metricTotalNote">Semua kandidat</small></div>
+          </article>
+          <article class="metric-card metric-violet">
+            <div class="metric-icon"><i class="fa-solid fa-user-plus"></i></div>
+            <div><p>Pelamar hari ini</p><strong id="metricToday">0</strong><small>Masuk pada hari ini</small></div>
+          </article>
+          <article class="metric-card metric-orange">
+            <div class="metric-icon"><i class="fa-solid fa-briefcase"></i></div>
+            <div><p>Total posisi</p><strong id="metricPosition">0</strong><small>Posisi yang diminati</small></div>
+          </article>
+          <article class="metric-card metric-teal">
+            <div class="metric-icon"><i class="fa-solid fa-building"></i></div>
+            <div><p>Total cabang</p><strong id="metricBranch">0</strong><small>Lokasi penempatan</small></div>
+          </article>
+          <article class="metric-card metric-pink">
+            <div class="metric-icon"><i class="fa-solid fa-fingerprint"></i></div>
+            <div><p>Variasi MBTI</p><strong id="metricMbti">0</strong><small>Tipe kepribadian</small></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="toolbar-card" id="applicants" aria-labelledby="applicantHeading">
+        <div class="section-heading table-heading">
+          <div>
+            <h2 id="applicantHeading">Daftar pelamar</h2>
+            <p id="resultSummary">Memuat data pelamar…</p>
+          </div>
+          <div class="export-actions">
+            <button class="outline-button" id="exportExcel" type="button"><i class="fa-solid fa-file-excel"></i><span>Excel</span></button>
+            <button class="primary-button" id="exportPdf" type="button"><i class="fa-solid fa-file-pdf"></i><span>PDF</span></button>
+          </div>
+        </div>
+
+        <div class="search-row">
+          <label class="search-box" for="searchInput">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input id="searchInput" type="search" placeholder="Cari nama, WhatsApp, email, posisi, cabang, atau MBTI…" autocomplete="off" />
+            <button class="search-clear hidden" id="searchClear" type="button" aria-label="Hapus pencarian"><i class="fa-solid fa-xmark"></i></button>
+          </label>
+          <button class="filter-button" id="filterToggle" type="button" aria-expanded="true" aria-controls="filterPanel"><i class="fa-solid fa-sliders"></i> Filter <span id="activeFilterCount">0</span></button>
+        </div>
+
+        <div class="filter-panel" id="filterPanel">
+          <label>Posisi<select id="filterPosition"><option value="">Semua posisi</option></select></label>
+          <label>Cabang<select id="filterBranch"><option value="">Semua cabang</option></select></label>
+          <label>Pendidikan<select id="filterEducation"><option value="">Semua pendidikan</option></select></label>
+          <label>Status menikah<select id="filterMarital"><option value="">Semua status</option></select></label>
+          <label>Agama<select id="filterReligion"><option value="">Semua agama</option></select></label>
+          <label>MBTI<select id="filterMbti"><option value="">Semua MBTI</option></select></label>
+          <label>Gender<select id="filterGender"><option value="">Semua gender</option></select></label>
+          <button class="reset-filter" id="resetFilters" type="button"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+        </div>
+
+        <div class="active-filter-list" id="activeFilterList" aria-live="polite"></div>
+        <div class="table-wrap">
+          <table class="applicant-table">
+            <thead>
+              <tr>
+                <th class="number-column">No.</th>
+                <th class="candidate-column"><button class="sort-button" type="button" data-sort="name">Pelamar <i class="fa-solid fa-sort"></i></button></th>
+                <th class="position-column"><button class="sort-button" type="button" data-sort="position">Posisi <i class="fa-solid fa-sort"></i></button></th>
+                <th class="branch-column"><button class="sort-button" type="button" data-sort="branch">Cabang <i class="fa-solid fa-sort"></i></button></th>
+                <th class="whatsapp-column">WhatsApp</th>
+                <th class="mbti-column"><button class="sort-button" type="button" data-sort="mbti">MBTI <i class="fa-solid fa-sort"></i></button></th>
+                <th class="date-column"><button class="sort-button" type="button" data-sort="appliedAt">Tanggal melamar <i class="fa-solid fa-sort"></i></button></th>
+                <th class="action-column">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="applicantBody"></tbody>
+          </table>
+          <div class="table-loading" id="tableLoading"><span class="spinner"></span><span>Mengambil data pelamar…</span></div>
+          <div class="empty-state hidden" id="emptyState"><i class="fa-regular fa-folder-open"></i><h3>Tidak ada pelamar ditemukan</h3><p>Ubah kata kunci pencarian atau bersihkan filter yang aktif.</p><button class="outline-button" id="emptyReset" type="button">Bersihkan filter</button></div>
+        </div>
+        <div class="table-footer">
+          <label class="per-page">Tampilkan <select id="perPage"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select> baris</label>
+          <div class="pagination" id="pagination" aria-label="Navigasi halaman"></div>
+        </div>
+      </section>
+
+      <section class="statistics" id="statistics" aria-labelledby="statisticsHeading">
+        <div class="section-heading">
+          <div><h2 id="statisticsHeading">Statistik pelamar</h2><p>Distribusi otomatis mengikuti hasil filter saat ini.</p></div>
+          <span class="chart-note"><i class="fa-solid fa-circle"></i> Data aktif</span>
+        </div>
+        <div class="chart-grid">
+          <article class="chart-card"><div class="chart-title"><div><h3>Posisi yang dilamar</h3><p>5 posisi teratas</p></div><span class="chart-icon blue"><i class="fa-solid fa-briefcase"></i></span></div><div class="chart-canvas"><canvas id="positionChart"></canvas></div></article>
+          <article class="chart-card"><div class="chart-title"><div><h3>Sebaran cabang</h3><p>Lokasi penempatan kandidat</p></div><span class="chart-icon violet"><i class="fa-solid fa-building"></i></span></div><div class="chart-canvas"><canvas id="branchChart"></canvas></div></article>
+          <article class="chart-card"><div class="chart-title"><div><h3>Tipe MBTI</h3><p>Profil kepribadian kandidat</p></div><span class="chart-icon pink"><i class="fa-solid fa-fingerprint"></i></span></div><div class="chart-canvas"><canvas id="mbtiChart"></canvas></div></article>
+          <article class="chart-card"><div class="chart-title"><div><h3>Gender</h3><p>Komposisi kandidat</p></div><span class="chart-icon teal"><i class="fa-solid fa-venus-mars"></i></span></div><div class="chart-canvas"><canvas id="genderChart"></canvas></div></article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
+    <section class="applicant-modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <header class="modal-header">
+        <div><p class="eyebrow">PROFIL PELAMAR</p><h2 id="modalTitle">Detail pelamar</h2></div>
+        <button class="icon-button close-modal" type="button" aria-label="Tutup detail"><i class="fa-solid fa-xmark"></i></button>
+      </header>
+      <div class="modal-body" id="modalBody"></div>
+    </section>
+  </div>
+  <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+  <script type="module" src="script.js"></script>
+</body>
+</html>
