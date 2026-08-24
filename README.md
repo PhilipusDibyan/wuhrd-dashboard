@@ -1,4 +1,4 @@
-# TalentFlow — Dashboard HRD
+# Wujud Unggul — Dashboard HRD
 
 Dashboard rekrutmen responsif berbasis HTML5, CSS3, dan JavaScript murni. Data dibaca sebagai JSON dari Google Apps Script; tidak ada jQuery, PapaParse, atau CSV.
 
@@ -42,9 +42,12 @@ Setelah URL diatur, dashboard otomatis mengambil JSON saat halaman dibuka dan me
 - Ringkasan total pelamar, pelamar hari ini, posisi, cabang, dan MBTI
 - Pencarian realtime dengan debounce
 - Filter posisi, cabang, pendidikan, status pernikahan, agama, MBTI, dan gender
+- Normalisasi kategori otomatis: variasi kapitalisasi/spasi atau nama ekuivalen seperti `officeboy`/`OFFICE BOY`, `Data Analis`/`Data Analyst`, serta `Admin Gudang`/`Admin Warehouse` tampil sebagai satu pilihan filter
 - Sorting, pagination, tabel responsif, dan modal detail lengkap
 - Grafik posisi, cabang, MBTI, dan gender yang mengikuti filter aktif
 - Ekspor hasil filter ke Excel dan PDF
+- Pilihan ekspor semua hasil filter atau laporan satu pelamar; kedua format menyertakan ekspektasi gaji
+- Laporan PDF per individu dapat melampirkan CV PDF dari Google Form. File harus berada di Google Drive, tercatat di kolom CV (`uploadCv`/variasinya), berukuran maksimal 8 MB, dan deployment Apps Script harus diperbarui.
 - Dark mode tersimpan di browser
 - Sinkronisasi ulang manual dan otomatis setiap 30 detik
 

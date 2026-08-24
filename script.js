@@ -8,7 +8,7 @@ import { initTheme } from './theme.js';
 const state = {
   all: [], filtered: [], page: 1, perPage: 10,
   sort: { field: 'appliedAt', direction: 'desc' },
-  isLoading: false, isDemo: false,
+  isLoading: false, isDemo: false, pendingExportFormat: null,
 };
 
 const $ = id => document.getElementById(id);
@@ -183,6 +183,61 @@ function closeMobileNav() {
   $('mobileBackdrop').classList.remove('open');
 }
 
+function closeExportMenus() {
+  document.querySelectorAll('.export-popover').forEach(menu => menu.classList.remove('open'));
+  document.querySelectorAll('[data-export-menu]').forEach(button => button.setAttribute('aria-expanded', 'false'));
+}
+
+async function exportAll(format) {
+  closeExportMenus();
+  if (format === 'excel') return exportExcel(state.filtered);
+  if (format === 'pdf') return exportPdf(state.filtered);
+}
+
+function closeReportPicker() {
+  const backdrop = $('reportPickerBackdrop');
+  backdrop.classList.remove('open');
+  backdrop.setAttribute('aria-hidden', 'true');
+  state.pendingExportFormat = null;
+}
+
+function openReportPicker(format) {
+  closeExportMenus();
+  if (!state.filtered.length) return showToast('Tidak ada pelamar pada hasil filter saat ini.', 'error');
+
+  const formatName = format === 'excel' ? 'Excel' : 'PDF';
+  state.pendingExportFormat = format;
+  $('reportPickerTitle').textContent = `Pilih pelamar untuk ${formatName}`;
+  $('reportPickerDescription').textContent = `Laporan ${formatName} akan memuat satu pelamar, termasuk ekspektasi gajinya.`;
+  $('confirmIndividualExport').innerHTML = `<i class="fa-solid fa-file-export"></i> Ekspor ${formatName}`;
+  $('reportApplicantSelect').innerHTML = state.filtered.map(record => {
+    const index = state.all.indexOf(record);
+    const identity = [record.position, record.branch, record.email].filter(Boolean).join(' · ');
+    return `<option value="${index}">${escapeHtml(record.name)}${identity ? ` — ${escapeHtml(identity)}` : ''}</option>`;
+  }).join('');
+
+  const backdrop = $('reportPickerBackdrop');
+  backdrop.classList.add('open');
+  backdrop.setAttribute('aria-hidden', 'false');
+  $('reportApplicantSelect').focus();
+}
+
+async function confirmIndividualExport() {
+  const format = state.pendingExportFormat;
+  const index = Number($('reportApplicantSelect').value);
+  const applicant = state.all[index];
+  if (!format || !applicant) return showToast('Pelamar untuk laporan belum dipilih.', 'error');
+  const confirmButton = $('confirmIndividualExport');
+  confirmButton.disabled = true;
+  try {
+    if (format === 'excel') exportExcel([applicant]);
+    if (format === 'pdf') await exportPdf([applicant]);
+    closeReportPicker();
+  } finally {
+    confirmButton.disabled = false;
+  }
+}
+
 function initEvents() {
   dom.search.addEventListener('input', debounce(() => applyFilters(), 200));
   dom.searchClear.addEventListener('click', () => { dom.search.value = ''; applyFilters(); dom.search.focus(); });
@@ -219,8 +274,29 @@ function initEvents() {
     if (button) openApplicantModal(state.all[Number(button.dataset.detailIndex)]);
   });
   dom.refresh.addEventListener('click', () => loadApplicants());
-  $('exportExcel').addEventListener('click', () => exportExcel(state.filtered));
-  $('exportPdf').addEventListener('click', () => exportPdf(state.filtered));
+  $('exportExcel').addEventListener('click', () => exportAll('excel'));
+  $('exportPdf').addEventListener('click', () => exportAll('pdf'));
+  document.querySelector('.export-actions').addEventListener('click', event => {
+    const toggle = event.target.closest('[data-export-menu]');
+    if (toggle) {
+      const menu = $(`${toggle.dataset.exportMenu}ExportMenu`);
+      const willOpen = !menu.classList.contains('open');
+      closeExportMenus();
+      menu.classList.toggle('open', willOpen);
+      toggle.setAttribute('aria-expanded', String(willOpen));
+      return;
+    }
+    const all = event.target.closest('[data-export-all]');
+    if (all) return exportAll(all.dataset.exportAll);
+    const individual = event.target.closest('[data-export-individual]');
+    if (individual) openReportPicker(individual.dataset.exportIndividual);
+  });
+  $('closeReportPicker').addEventListener('click', closeReportPicker);
+  $('cancelReportPicker').addEventListener('click', closeReportPicker);
+  $('confirmIndividualExport').addEventListener('click', confirmIndividualExport);
+  $('reportPickerBackdrop').addEventListener('click', event => { if (event.target === $('reportPickerBackdrop')) closeReportPicker(); });
+  document.addEventListener('click', event => { if (!event.target.closest('.export-actions')) closeExportMenus(); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeExportMenus(); closeReportPicker(); } });
   $('closeNotice').addEventListener('click', () => dom.apiNotice.classList.add('hidden'));
   $('mobileMenu').addEventListener('click', () => { $('sidebar').classList.add('open'); $('mobileBackdrop').classList.add('open'); });
   $('mobileBackdrop').addEventListener('click', closeMobileNav);

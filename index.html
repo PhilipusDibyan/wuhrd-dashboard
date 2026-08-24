@@ -4,19 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Dashboard rekrutmen HRD berbasis Google Apps Script API." />
-  <title>ByanTech — Dashboard HRD</title>
+  <title>Wujud Unggul — Dashboard HRD</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" referrerpolicy="no-referrer" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20260824-2" />
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar" id="sidebar" aria-label="Navigasi utama">
-      <a class="brand" href="#overview" aria-label="ByanTech dashboard">
-        <span class="brand-mark"><i class="fa-solid fa-layer-group"></i></span>
-        <span>HRGA<span>Teams</span></span>
+      <a class="brand" href="#overview" aria-label="Wujud Unggul dashboard">
+        <span class="brand-mark"><img class="brand-logo" src="assets/logo-wujud-unggul.png?v=20260824-2" alt="" /></span>
+        <span class="brand-name">Wujud Unggul</span>
       </a>
 
       <nav class="side-nav">
@@ -30,7 +30,7 @@
 
       <div class="sidebar-bottom">
         <div class="sync-status" id="syncStatus"><span class="status-dot"></span><span>Siap disinkronkan</span></div>
-        <small>ByanTech HRD v1.0</small>
+        <small>Wujud Unggul HRD v1.0</small>
       </div>
     </aside>
 
@@ -95,9 +95,23 @@
             <h2 id="applicantHeading">Daftar pelamar</h2>
             <p id="resultSummary">Memuat data pelamar…</p>
           </div>
-          <div class="export-actions">
-            <button class="outline-button" id="exportExcel" type="button"><i class="fa-solid fa-file-excel"></i><span>Excel</span></button>
-            <button class="primary-button" id="exportPdf" type="button"><i class="fa-solid fa-file-pdf"></i><span>PDF</span></button>
+          <div class="export-actions" aria-label="Pilihan ekspor laporan">
+            <div class="export-group">
+              <button class="outline-button export-main" id="exportExcel" type="button" title="Ekspor semua hasil filter ke Excel"><i class="fa-solid fa-file-excel"></i><span>Excel</span></button>
+              <button class="export-menu-toggle" type="button" data-export-menu="excel" aria-expanded="false" aria-controls="excelExportMenu" aria-label="Pilihan ekspor Excel"><i class="fa-solid fa-chevron-down"></i></button>
+              <div class="export-popover" id="excelExportMenu" role="menu">
+                <button type="button" role="menuitem" data-export-all="excel"><i class="fa-solid fa-users"></i><span><strong>Semua data aktif</strong><small>Ekspor hasil pencarian dan filter</small></span></button>
+                <button type="button" role="menuitem" data-export-individual="excel"><i class="fa-solid fa-user"></i><span><strong>Per individu</strong><small>Pilih satu pelamar untuk diekspor</small></span></button>
+              </div>
+            </div>
+            <div class="export-group">
+              <button class="primary-button export-main" id="exportPdf" type="button" title="Ekspor semua hasil filter ke PDF"><i class="fa-solid fa-file-pdf"></i><span>PDF</span></button>
+              <button class="export-menu-toggle export-menu-toggle-primary" type="button" data-export-menu="pdf" aria-expanded="false" aria-controls="pdfExportMenu" aria-label="Pilihan ekspor PDF"><i class="fa-solid fa-chevron-down"></i></button>
+              <div class="export-popover" id="pdfExportMenu" role="menu">
+                <button type="button" role="menuitem" data-export-all="pdf"><i class="fa-solid fa-users"></i><span><strong>Semua data aktif</strong><small>Ekspor hasil pencarian dan filter</small></span></button>
+                <button type="button" role="menuitem" data-export-individual="pdf"><i class="fa-solid fa-user"></i><span><strong>Per individu</strong><small>Pilih satu pelamar untuk diekspor</small></span></button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -142,7 +156,7 @@
           <div class="empty-state hidden" id="emptyState"><i class="fa-regular fa-folder-open"></i><h3>Tidak ada pelamar ditemukan</h3><p>Ubah kata kunci pencarian atau bersihkan filter yang aktif.</p><button class="outline-button" id="emptyReset" type="button">Bersihkan filter</button></div>
         </div>
         <div class="table-footer">
-          <label class="per-page">Tampilkan <select id="perPage"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select> baris</label>
+          <label class="per-page"><span>Tampilkan</span><select id="perPage" aria-label="Jumlah baris per halaman"><option value="10">10</option><option value="25">25</option></select><span>baris</span></label>
           <div class="pagination" id="pagination" aria-label="Navigasi halaman"></div>
         </div>
       </section>
@@ -171,12 +185,30 @@
       <div class="modal-body" id="modalBody"></div>
     </section>
   </div>
+  <div class="report-picker-backdrop" id="reportPickerBackdrop" aria-hidden="true">
+    <section class="report-picker" role="dialog" aria-modal="true" aria-labelledby="reportPickerTitle">
+      <header class="report-picker-header">
+        <div><p class="eyebrow">EKSPOR PER INDIVIDU</p><h2 id="reportPickerTitle">Pilih pelamar</h2></div>
+        <button class="icon-button" id="closeReportPicker" type="button" aria-label="Tutup pilihan ekspor"><i class="fa-solid fa-xmark"></i></button>
+      </header>
+      <div class="report-picker-body">
+        <p id="reportPickerDescription">Pilih pelamar yang akan diekspor.</p>
+        <label for="reportApplicantSelect">Pelamar</label>
+        <select id="reportApplicantSelect"></select>
+      </div>
+      <footer class="report-picker-footer">
+        <button class="outline-button" id="cancelReportPicker" type="button">Batal</button>
+        <button class="primary-button" id="confirmIndividualExport" type="button"><i class="fa-solid fa-file-export"></i> Ekspor laporan</button>
+      </footer>
+    </section>
+  </div>
   <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script type="module" src="script.js"></script>
 </body>
 </html>

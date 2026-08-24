@@ -32,7 +32,7 @@ const aliases = {
   expectedSalary: ['ekspektasigaji', 'gajiyangdiharapkan', 'expectedsalary'],
   availability: ['kesediaanmulai', 'mulaibekerja', 'availability', 'tanggalmulaikerja'],
   photoUrl: ['foto', 'fotodiri', 'photo', 'photourl', 'pasfoto'],
-  cvUrl: ['cv', 'uploadcv', 'filecv', 'curriculumvitae'],
+  cvUrl: ['cv', 'uploadcv', 'filecv', 'curriculumvitae', 'uploadfilecv', 'uploadberkascv', 'uploadcurriculumvitae', 'berkascv', 'filecurriculumvitae'],
   mbtiFileUrl: ['uploadmbti', 'filembti', 'hasilmbti', 'mbtifile'],
   appliedAt: ['tanggalmelamar', 'waktupengisian', 'timestamp', 'appliedat', 'tanggaldaftar', 'createdat'],
 };
@@ -67,6 +67,92 @@ function getBranchValue(source) {
   return matchingEntry ? String(matchingEntry[1]).trim() : '';
 }
 
+function getCvValue(source) {
+  const directValue = getValue(source, aliases.cvUrl);
+  if (directValue) return directValue;
+
+  const matchingEntry = Object.entries(source || {}).find(([key, value]) => {
+    const normalizedKey = keyOf(key);
+    const hasValue = value !== undefined && value !== null && String(value).trim() !== '';
+    return hasValue && (normalizedKey.includes('cv') || normalizedKey.includes('curriculumvitae'));
+  });
+  return matchingEntry ? String(matchingEntry[1]).trim() : '';
+}
+
+function getGoogleDriveFileId(value = '') {
+  const text = String(value).trim();
+  const fromPath = text.match(/\/d\/([a-zA-Z0-9_-]{20,})/);
+  const fromQuery = text.match(/[?&]id=([a-zA-Z0-9_-]{20,})/);
+  const direct = text.match(/^([a-zA-Z0-9_-]{20,})$/);
+  return fromPath?.[1] || fromQuery?.[1] || direct?.[1] || '';
+}
+
+function cleanCategory(value) {
+  return String(value ?? '').trim().replace(/\s+/g, ' ');
+}
+
+function titleCase(value) {
+  return cleanCategory(value).toLocaleLowerCase('id-ID').replace(/(^|[\s/-])([\p{L}])/gu, (_, prefix, letter) => `${prefix}${letter.toLocaleUpperCase('id-ID')}`);
+}
+
+/**
+ * Menggabungkan penulisan posisi yang berbeda di Google Form ke satu jobdesk.
+ * Nilai ini dipakai seluruh aplikasi: tabel, filter, pencarian, statistik, dan ekspor.
+ */
+function normalizePosition(value) {
+  const text = cleanCategory(value);
+  const compact = keyOf(text);
+  if (!text) return '';
+
+  // Pemetaan berbasis kata yang sudah dinormalisasi (tanpa spasi/tanda baca).
+  // Satu jabatan selalu tampil sebagai satu pilihan filter di seluruh dashboard.
+  if (compact === 'ob' || compact.includes('officeboy')) return 'Office Boy';
+  if (compact.includes('adminwarehouse') || compact.includes('admingudang')) return 'Admin Gudang';
+  if (compact.includes('dataanalis') || compact.includes('dataanalyst')) return 'Data Analyst';
+  if (compact.includes('staffadministrasi') || compact.includes('administrasistaf') || compact === 'administrasi' || compact === 'admin') return 'Staff Administrasi';
+  if (compact.includes('adminteknisi') || compact.includes('technicaladmin')) return 'Admin Teknisi';
+  if (compact.includes('teknisi') || compact.includes('technician') || compact.includes('technical')) return 'Teknisi';
+  if (compact.includes('pemagangan') || compact.includes('magang') || compact.includes('intern')) return 'Tenaga Pemagangan';
+  if (compact === 'hr' || compact.includes('hrga') || compact.includes('staffhrd') || compact.includes('staffhr')) return 'Human Resources Officer';
+  if (compact.includes('spvdelivery') || compact.includes('supervisordelivery')) return 'SPV Delivery';
+  if (compact.includes('salesexecutive') || compact === 'sales') return 'Sales Executive';
+  if (compact.includes('financestaff') || compact === 'finance') return 'Finance Staff';
+  return titleCase(text);
+}
+
+/** Normalisasi setiap nilai filter agar pilihan tidak terduplikasi karena kapitalisasi/spasi. */
+function normalizeCategory(field, value) {
+  const text = cleanCategory(value);
+  const compact = keyOf(text);
+  if (!text) return '';
+
+  if (field === 'position') return normalizePosition(text);
+  if (field === 'mbti') return compact.toUpperCase();
+
+  if (field === 'gender') {
+    if (compact.includes('laki') || compact === 'pria' || compact === 'male') return 'Laki-laki';
+    if (compact.includes('perempuan') || compact === 'wanita' || compact === 'female') return 'Perempuan';
+  }
+
+  if (field === 'maritalStatus') {
+    if (compact.includes('belummenikah') || compact === 'single') return 'Belum Menikah';
+    if (compact === 'menikah' || compact === 'kawin' || compact === 'married') return 'Menikah';
+    if (compact.includes('cerai')) return 'Cerai';
+  }
+
+  if (field === 'religion') {
+    const religions = { islam: 'Islam', kristen: 'Kristen', katolik: 'Katolik', hindu: 'Hindu', buddha: 'Buddha', konghucu: 'Konghucu' };
+    if (religions[compact]) return religions[compact];
+  }
+
+  if (field === 'education') {
+    if (/^[sd]\d$/.test(compact)) return compact.toUpperCase();
+    if (compact === 'smasmk' || compact === 'smk') return 'SMA/SMK';
+  }
+
+  return titleCase(text);
+}
+
 /** Normalizes flexible column names from a Google Sheet JSON response. */
 export function normalizeApplicant(record, index = 0) {
   const raw = record && typeof record === 'object' ? record : {};
@@ -75,6 +161,11 @@ export function normalizeApplicant(record, index = 0) {
     applicant[field] = String(getValue(raw, possibleKeys) ?? '').trim();
   });
   applicant.branch = getBranchValue(raw);
+  applicant.cvUrl = getCvValue(raw);
+  applicant.cvFileId = getGoogleDriveFileId(applicant.cvUrl);
+  ['position', 'branch', 'education', 'maritalStatus', 'religion', 'mbti', 'gender'].forEach(field => {
+    applicant[field] = normalizeCategory(field, applicant[field]);
+  });
   applicant.id = applicant.id || `applicant-${index + 1}`;
   applicant.name = applicant.name || 'Tanpa nama';
   applicant.raw = raw;
@@ -123,6 +214,22 @@ export async function fetchApplicants() {
 
   const list = unwrapResponse(await readJsonResponse(response));
   return { data: list.map(normalizeApplicant), isDemo: false };
+}
+
+/** Mengambil isi file CV PDF lewat endpoint Apps Script yang memverifikasi file terhadap databasePelamar. */
+export async function fetchCvPdf(applicant) {
+  if (!applicant?.cvFileId) throw new Error('Tautan CV Google Drive tidak ditemukan atau bukan file Drive yang valid.');
+  const requestUrl = new URL(API_URL);
+  requestUrl.searchParams.set('action', 'cv');
+  requestUrl.searchParams.set('fileId', applicant.cvFileId);
+  requestUrl.searchParams.set('_ts', String(Date.now()));
+
+  const response = await fetch(requestUrl, { method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store', redirect: 'follow' });
+  if (!response.ok) throw new Error(`File CV tidak dapat diambil (HTTP ${response.status}).`);
+  const payload = await readJsonResponse(response);
+  if (!payload?.success || !payload?.base64) throw new Error(payload?.error || 'File CV tidak tersedia.');
+  if (payload.mimeType !== 'application/pdf') throw new Error('File CV bukan PDF sehingga tidak dapat dilampirkan ke laporan PDF.');
+  return payload;
 }
 
 /** Sample data is only used until a real API_URL is supplied. */
