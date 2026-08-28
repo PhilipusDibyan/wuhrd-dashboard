@@ -1,4 +1,4 @@
-import { escapeHtml, initials, isUrl } from './utils.js';
+import { escapeHtml, formatCurrency, formatDate, initials, isUrl } from './utils.js';
 
 const detailGroups = [
   {
@@ -8,12 +8,12 @@ const detailGroups = [
   },
   {
     title: 'Profil lamaran', icon: 'fa-briefcase', fields: [
-      ['position', 'Posisi yang dilamar'], ['branch', 'Cabang penempatan'], ['appliedAt', 'Tanggal melamar'], ['availability', 'Kesediaan mulai kerja'], ['expectedSalary', 'Ekspektasi gaji'],
+      ['position', 'Posisi yang dilamar'], ['branch', 'Cabang penempatan'], ['appliedAt', 'Tanggal melamar'], ['availability', 'Kesediaan mulai kerja'], ['expectedSalary', 'Ekspektasi gaji'], ['lastSalary', 'Gaji terakhir'],
     ],
   },
   {
     title: 'Pendidikan & pengalaman', icon: 'fa-graduation-cap', fields: [
-      ['education', 'Pendidikan terakhir'], ['experience', 'Pengalaman kerja', true], ['skills', 'Keahlian', true], ['certificate', 'Sertifikat', true],
+      ['education', 'Pendidikan terakhir'], ['experience', 'Pengalaman kerja', true], ['skills', 'Keahlian', true], ['certificate', 'Sertifikat', true, true],
     ],
   },
   {
@@ -35,16 +35,28 @@ function humanizeKey(key) {
   return String(key).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/^./, char => char.toUpperCase());
 }
 
-function valueMarkup(value, isFile = false) {
+function fileLinksMarkup(value) {
+  const links = String(value).split(/[\s,]+/).filter(Boolean).filter(isUrl);
+  if (!links.length) return escapeHtml(value);
+  if (links.length === 1) {
+    return `<a class="file-link" href="${escapeHtml(links[0])}" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i> Buka dokumen</a>`;
+  }
+  return links.map((link, index) => `<a class="file-link" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i> Dokumen ${index + 1}</a>`).join(' &nbsp; ');
+}
+
+function valueMarkup(applicant, key, isFile = false) {
+  const value = applicant[key];
   if (!value) return '—';
-  if (isFile && isUrl(value)) return `<a class="file-link" href="${escapeHtml(value)}" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i> Buka dokumen</a>`;
+  if (isFile) return fileLinksMarkup(value);
+  if (key === 'appliedAt') return escapeHtml(formatDate(value, true));
+  if (key === 'expectedSalary' || key === 'lastSalary') return escapeHtml(formatCurrency(value));
   return escapeHtml(value);
 }
 
 function sectionMarkup(group, applicant) {
   const rows = group.fields.map(([key, label, full, isFile]) => `
     <div class="detail-item ${full ? 'full' : ''}">
-      <dt>${escapeHtml(label)}</dt><dd>${valueMarkup(applicant[key], isFile)}</dd>
+      <dt>${escapeHtml(label)}</dt><dd>${valueMarkup(applicant, key, isFile)}</dd>
     </div>`).join('');
   return `<section class="detail-section"><h3><i class="fa-solid ${group.icon}"></i>${group.title}</h3><dl class="detail-grid">${rows}</dl></section>`;
 }

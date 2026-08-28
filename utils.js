@@ -44,6 +44,21 @@ export function formatDate(value, withTime = false) {
   return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric', ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {}) }).format(date);
 }
 
+/**
+ * Memformat nilai gaji/nominal menjadi format Rupiah, mis. "5000000" atau "Rp5.000.000"
+ * menjadi "Rp. 5.000.000". Jika nilainya bukan angka murni (mis. "Nego" atau rentang gaji
+ * dengan teks tambahan), nilai aslinya ditampilkan apa adanya agar tidak salah format.
+ */
+export function formatCurrency(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return '—';
+  const strippedNonDigits = text.replace(/rp\.?/gi, '').replace(/[\s.,]/g, '');
+  if (!/^\d+$/.test(strippedNonDigits)) return text;
+  const number = Number(strippedNonDigits);
+  if (!Number.isFinite(number) || number <= 0) return text;
+  return `Rp. ${number.toLocaleString('id-ID')}`;
+}
+
 export function isToday(value) {
   const date = parseDate(value);
   if (!date) return false;

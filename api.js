@@ -1,7 +1,3 @@
-/**
- * Konfigurasi sumber data. Ganti API_URL dengan URL deployment Web App
- * Google Apps Script Anda, misalnya: https://script.google.com/macros/s/AKfy.../exec
- */
 export const API_URL = 'https://script.google.com/macros/s/AKfycbx86xiEASPQfR5B2XvP8svJfcYxq265If3bxBW0CDWzBt5JRzeNHsK-AGw92srVLkEH/exec';
 export const AUTO_REFRESH_MS = 30_000;
 export const USE_DEMO_WHEN_UNAVAILABLE = true;
@@ -26,11 +22,27 @@ const aliases = {
   mbti: ['tipekepribadianmbtianda', 'mbti', 'tipekepribadian', 'personalitytype'],
   address: ['alamat', 'alamatlengkap', 'address'],
   birthPlaceDate: ['tempattanggallahir', 'tempattgllahir', 'ttl', 'birthplaceanddate', 'tanggallahir'],
-  experience: ['pengalamankerja', 'pengalaman', 'workexperience', 'experience'],
-  skills: ['keahlian', 'skill', 'skills', 'kompetensi'],
-  certificate: ['sertifikat', 'certification', 'certificates'],
+  experience: [
+    'pengalamankerja', 'pengalaman', 'workexperience', 'experience', 'pengalamankerjaterakhir',
+    'pengalamanbekerja', 'riwayatpekerjaan', 'riwayatkerja', 'pengalamankerjasebelumnya',
+  ],
+  skills: ['keahlian', 'skill', 'skills', 'kompetensi', 'kemampuan', 'keahliankhusus'],
+  certificate: [
+    'sertifikat', 'certification', 'certificates', 'sertifikasi', 'lisensi',
+    'sertifikasipelatihantambahanyangdimiliki', 'pelatihantambahanyangdimiliki',
+    'sertifikasidanpelatihan', 'pelatihandansertifikasi',
+  ],
   expectedSalary: ['ekspektasigaji', 'gajiyangdiharapkan', 'expectedsalary'],
-  availability: ['kesediaanmulai', 'mulaibekerja', 'availability', 'tanggalmulaikerja'],
+  lastSalary: [
+    'gajiterakhir', 'gajiterakhirsaatini', 'gajiterakhiranda', 'gajidiperusahaansebelumnya',
+    'gajipadapekerjaansebelumnya', 'gajisebelumnya', 'besarangajiterakhir', 'lastsalary',
+    'currentsalary', 'gajisaatini',
+  ],
+  availability: [
+    'kesediaanmulai', 'mulaibekerja', 'availability', 'tanggalmulaikerja',
+    'kapanandabisamulaibergabung', 'kapanbisamulaibergabung', 'kesediaanbergabung',
+    'tanggalbisabergabung', 'kapanandabisamulaikerja', 'kesediaanmulaikerja',
+  ],
   photoUrl: ['foto', 'fotodiri', 'photo', 'photourl', 'pasfoto'],
   cvUrl: ['cv', 'uploadcv', 'filecv', 'curriculumvitae', 'uploadfilecv', 'uploadberkascv', 'uploadcurriculumvitae', 'berkascv', 'filecurriculumvitae'],
   mbtiFileUrl: ['uploadmbti', 'filembti', 'hasilmbti', 'mbtifile'],
@@ -41,50 +53,97 @@ function keyOf(value) {
   return String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-function getValue(source, possibleKeys) {
-  const normalized = new Map(Object.entries(source || {}).map(([key, value]) => [keyOf(key), value]));
+function buildColumnMap(source) {
+  return new Map(Object.entries(source || {}).map(([key, value]) => [keyOf(key), value]));
+}
+
+function getValue(columnMap, possibleKeys) {
   for (const key of possibleKeys) {
-    const value = normalized.get(keyOf(key));
+    const value = columnMap.get(keyOf(key));
     if (value !== undefined && value !== null && String(value).trim() !== '') return value;
   }
   return '';
 }
 
-// Google Form terkadang mengubah pertanyaan panjang menjadi header seperti
-// "cabangAtauLokasiYangDituju". Fallback ini menangkap variasi cabang tersebut
-// tanpa mengambil kolom alamat atau domisili sebagai cabang penempatan.
-function getBranchValue(source) {
-  const directValue = getValue(source, aliases.branch);
+function getBranchValue(columnMap) {
+  const directValue = getValue(columnMap, aliases.branch);
   if (directValue) return directValue;
-
-  const matchingEntry = Object.entries(source || {}).find(([key, value]) => {
-    const normalizedKey = keyOf(key);
-    const hasValue = value !== undefined && value !== null && String(value).trim() !== '';
-    const isBranchQuestion = normalizedKey.includes('cabang')
-      || (normalizedKey.includes('lokasi') && /(tuju|penempatan|kerja|lamar)/.test(normalizedKey));
-    return hasValue && isBranchQuestion;
-  });
-  return matchingEntry ? String(matchingEntry[1]).trim() : '';
+  return findValueByKeyword(columnMap, key => key.includes('cabang')
+    || (key.includes('lokasi') && /(tuju|penempatan|kerja|lamar)/.test(key)));
 }
 
-function getCvValue(source) {
-  const directValue = getValue(source, aliases.cvUrl);
+function getCvValue(columnMap) {
+  const directValue = getValue(columnMap, aliases.cvUrl);
   if (directValue) return directValue;
-
-  const matchingEntry = Object.entries(source || {}).find(([key, value]) => {
-    const normalizedKey = keyOf(key);
-    const hasValue = value !== undefined && value !== null && String(value).trim() !== '';
-    return hasValue && (normalizedKey.includes('cv') || normalizedKey.includes('curriculumvitae'));
-  });
-  return matchingEntry ? String(matchingEntry[1]).trim() : '';
+  return findValueByKeyword(columnMap, key => key.includes('cv') || key.includes('curriculumvitae'));
 }
 
 function getGoogleDriveFileId(value = '') {
   const text = String(value).trim();
-  const fromPath = text.match(/\/d\/([a-zA-Z0-9_-]{20,})/);
-  const fromQuery = text.match(/[?&]id=([a-zA-Z0-9_-]{20,})/);
-  const direct = text.match(/^([a-zA-Z0-9_-]{20,})$/);
-  return fromPath?.[1] || fromQuery?.[1] || direct?.[1] || '';
+  if (!text) return '';
+  // Pemisahan nama kandidat dan link cv (mis. "Ayu Lestari, https://drive.google.com/file/d/FILE_ID/view") 
+  // bisa terjadi saat Google Form mengizinkan multi-upload.
+  const candidates = text.split(/[\s,]+/).filter(Boolean);
+  for (const candidate of [text, ...candidates]) {
+    const fromPath = candidate.match(/\/(?:file\/d|d)\/([a-zA-Z0-9_-]{20,})/);
+    if (fromPath) return fromPath[1];
+    const fromQuery = candidate.match(/[?&]id=([a-zA-Z0-9_-]{20,})/);
+    if (fromQuery) return fromQuery[1];
+    const fromThumbnail = candidate.match(/thumbnail\?id=([a-zA-Z0-9_-]{20,})/);
+    if (fromThumbnail) return fromThumbnail[1];
+    const direct = candidate.match(/^([a-zA-Z0-9_-]{20,})$/);
+    if (direct) return direct[1];
+  }
+  return '';
+}
+
+function findValueByKeyword(columnMap, matches) {
+  for (const [normalizedKey, value] of columnMap) {
+    const hasValue = value !== undefined && value !== null && String(value).trim() !== '';
+    if (hasValue && matches(normalizedKey)) return String(value).trim();
+  }
+  return '';
+}
+
+
+function getAddressValue(columnMap) {
+  const directValue = getValue(columnMap, aliases.address);
+  if (directValue) return directValue;
+  return findValueByKeyword(columnMap, key => (
+    (key.includes('alamat') && !key.includes('email') && !key.includes('elektronik') && !key.includes('mail'))
+    || key.includes('domisili')
+  ));
+}
+
+function getSkillsValue(columnMap) {
+  const directValue = getValue(columnMap, aliases.skills);
+  if (directValue) return directValue;
+  return findValueByKeyword(columnMap, key => (
+    key.includes('keahlian') || key.includes('kompetensi') || key.includes('kemampuan') || key.includes('skill')
+  ));
+}
+
+function getCertificateValue(columnMap) {
+  const directValue = getValue(columnMap, aliases.certificate);
+  if (directValue) return directValue;
+  return findValueByKeyword(columnMap, key => (
+    key.includes('sertifikat') || key.includes('sertifikasi') || key.includes('lisensi') || key.includes('pelatihan')
+  ));
+}
+
+function getMaritalStatusValue(columnMap) {
+  const directValue = getValue(columnMap, aliases.maritalStatus);
+  if (directValue) return directValue;
+  return findValueByKeyword(columnMap, key => key.includes('pernikahan') || key.includes('menikah'));
+}
+
+
+function getMbtiFileValue(columnMap) {
+  const directValue = getValue(columnMap, aliases.mbtiFileUrl);
+  if (directValue) return directValue;
+  return findValueByKeyword(columnMap, key => (
+    key.includes('mbti') && (key.includes('upload') || key.includes('file') || key.includes('hasil') || key.includes('lampiran') || key.includes('dokumen'))
+  ));
 }
 
 function cleanCategory(value) {
@@ -153,15 +212,20 @@ function normalizeCategory(field, value) {
   return titleCase(text);
 }
 
-/** Normalizes flexible column names from a Google Sheet JSON response. */
 export function normalizeApplicant(record, index = 0) {
   const raw = record && typeof record === 'object' ? record : {};
+  const columnMap = buildColumnMap(raw);
   const applicant = {};
   Object.entries(aliases).forEach(([field, possibleKeys]) => {
-    applicant[field] = String(getValue(raw, possibleKeys) ?? '').trim();
+    applicant[field] = String(getValue(columnMap, possibleKeys) ?? '').trim();
   });
-  applicant.branch = getBranchValue(raw);
-  applicant.cvUrl = getCvValue(raw);
+  applicant.branch = getBranchValue(columnMap);
+  applicant.cvUrl = getCvValue(columnMap);
+  applicant.address = getAddressValue(columnMap);
+  applicant.skills = getSkillsValue(columnMap);
+  applicant.certificate = getCertificateValue(columnMap);
+  applicant.maritalStatus = getMaritalStatusValue(columnMap);
+  applicant.mbtiFileUrl = getMbtiFileValue(columnMap);
   applicant.cvFileId = getGoogleDriveFileId(applicant.cvUrl);
   ['position', 'branch', 'education', 'maritalStatus', 'religion', 'mbti', 'gender'].forEach(field => {
     applicant[field] = normalizeCategory(field, applicant[field]);
@@ -227,6 +291,9 @@ export async function fetchCvPdf(applicant) {
   const response = await fetch(requestUrl, { method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store', redirect: 'follow' });
   if (!response.ok) throw new Error(`File CV tidak dapat diambil (HTTP ${response.status}).`);
   const payload = await readJsonResponse(response);
+  if (Array.isArray(payload)) {
+    throw new Error('Endpoint mengembalikan data pelamar, bukan file CV. Deployment Apps Script Anda kemungkinan belum diperbarui — deploy ulang sebagai "New version" lalu coba lagi.');
+  }
   if (!payload?.success || !payload?.base64) throw new Error(payload?.error || 'File CV tidak tersedia.');
   if (payload.mimeType !== 'application/pdf') throw new Error('File CV bukan PDF sehingga tidak dapat dilampirkan ke laporan PDF.');
   return payload;
